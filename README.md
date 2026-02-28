@@ -11,13 +11,13 @@
 下載 `.msi` 或 `.exe` 檔案，雙擊執行即可完成安裝。
 
 ### 🍎 macOS (Apple Silicon / Intel)
-1. 下載 `.dmg` 檔案，打開後將 `YTM Widget.app` 拖曳至 **應用程式 (Applications)** 資料夾。
+1. 下載 `.dmg` 檔案，打開後將 `ytm-widget.app` 拖曳至 **應用程式 (Applications)** 資料夾。
 2. **【重要】解除系統安全限制**
    由於本軟體為開源免費發布（未經 Apple 付費開發者簽章），macOS 會預設阻擋執行並顯示「檔案已損壞」。
    請打開 **終端機 (Terminal)**，複製貼上以下指令並按下 Enter（執行時需輸入 Mac 開機密碼）：
    
    ```bash
-   sudo xattr -rd com.apple.quarantine "/Applications/YTM Widget.app"
+   sudo xattr -rd com.apple.quarantine "/Applications/ytm-widget.app"
    ```
    
 3. 執行完畢後，即可至應用程式中正常點擊開啟。
