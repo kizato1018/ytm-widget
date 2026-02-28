@@ -1,0 +1,41 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main",
+    "ytm-bg",
+    "settings"
+  ],
+  "remote": {
+    "urls": [
+      "https://music.youtube.com"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-is-minimized",
+    "core:window:allow-set-skip-taskbar",
+    "core:window:allow-create",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-size",
+    "core:webview:default",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:tray:default",
+    "core:menu:default",
+    "core:app:allow-default-window-icon",
+    "process:default",
+    "shell:default",
+    "shell:allow-execute",
+    "dialog:default"
+  ]
+}

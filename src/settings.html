@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>YTM Widget 設定</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 20px; margin: 0; user-select: none; }
+    .tab { display: flex; border-bottom: 1px solid #444; margin-bottom: 20px; }
+    .tab button { background: none; border: none; color: white; padding: 10px 20px; cursor: pointer; border-bottom: 2px solid #ff4444; font-weight: bold; font-size: 14px;}
+    .setting-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-size: 13px; color: #ccc; }
+    input { width: 100%; padding: 10px; box-sizing: border-box; background: #333; border: 1px solid #555; color: #ffffff; border-radius: 6px; font-family: monospace;}
+    
+    /* 💡 新增一個 flex 容器樣式來排版輸入框和按鈕 */
+    .input-row { display: flex; gap: 8px; }
+    .input-row input { flex: 1; /* 讓輸入框佔滿剩下的空間 */ }
+    .input-row button { background: #444; color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-weight: bold; }
+    .input-row button:hover { background: #555; }
+  </style>
+</head>
+<body>
+  <div class="tab">
+    <button>一般設定</button>
+  </div>
+  <div class="setting-group">
+    <label>音樂下載目錄</label>
+    <div class="input-row">
+      <input id="download-path-input" type="text" value="C:\Users\Downloads\Music" readonly title="請點擊右側按鈕選擇路徑">
+      <button id="browse-btn">瀏覽</button>
+    </div>
+  </div>
+
+  <script type="module" src="./settings.js"></script>
+</body>
+</html>
