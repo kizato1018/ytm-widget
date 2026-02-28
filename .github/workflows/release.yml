@@ -1,0 +1,58 @@
+name: "自動打包發布 (Release)"
+
+# 觸發條件：當你推送標籤 (例如 v1.0.0) 或手動點擊執行時觸發
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    permissions:
+      contents: write # 允許機器人幫你在 GitHub 建立 Release 頁面
+    strategy:
+      fail-fast: false
+      matrix:
+        # 定義三台雲端虛擬機：Mac、Linux、Windows
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: 📥 取得程式碼
+        uses: actions/checkout@v4
+
+      - name: 🟢 安裝 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🦀 安裝 Rust 環境
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 🐧 安裝 Linux 專用系統依賴 (僅限 Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: 📦 安裝前端 NPM 套件
+        run: npm install
+
+      - name: 🚀 執行 Tauri 自動打包並發布
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # 打包成功後，會以你推送的標籤名稱 (例如 v1.0.0) 建立 Release
+          tagName: ${{ github.ref_name }}
+          releaseName: 'YTM Widget ${{ github.ref_name }}'
+          releaseBody: |
+            ## 🎉 更新日誌
+            自動編譯完成的跨平台安裝檔！
+            - 支援 Windows (.msi / .exe)
+            - 支援 macOS (.dmg / .app)
+            - 支援 Linux (.deb / .AppImage)
+            包含內建 yt-dlp 引擎。
+          releaseDraft: true
+          prerelease: false
