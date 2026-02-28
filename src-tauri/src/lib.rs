@@ -8,8 +8,9 @@ use tauri_plugin_shell::process::CommandEvent;
 async fn download_music(app: tauri::AppHandle, url: String, path: String) -> Result<String, String> {
     let sidecar_command = app.shell().sidecar("yt-dlp").map_err(|e| e.to_string())?
         .args([
-            "-x", 
-            "--audio-format", "mp3", 
+            // "-x", 
+            // "--audio-format", "m4a", 
+            "-f", "ba[ext=m4a]",
             "--no-playlist",
             "--audio-quality", "0",
             "-o", &format!("{}/%(title)s.%(ext)s", path),

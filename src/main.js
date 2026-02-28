@@ -1,4 +1,4 @@
-import { getCurrentWindow, Window, getAllWindows, LogicalSize, LogicalPosition, PhysicalSize } from '@tauri-apps/api/window';
+import { getCurrentWindow, Window, LogicalSize } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { TrayIcon } from '@tauri-apps/api/tray';
 import { Menu, MenuItem } from '@tauri-apps/api/menu';
@@ -6,18 +6,27 @@ import { defaultWindowIcon } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { exit } from '@tauri-apps/plugin-process';
-import { app } from '@tauri-apps/api';
+
 const appWindow = getCurrentWindow();
 const FIXED_WIDTH = 320;
 const FIXED_HEIGHT = 160;
 
 // ==========================================
-// 1. 視窗控制與透明度
+// 0. 初始化全域狀態與音量記憶
 // ==========================================
 let ytmWindowCache = null;
 let isYtmVisible = true;
+let isSeeking = false;
+let latestYtmState = { isPaused: true, url: '' };
 
+// 💡 讀取上次儲存的音量，若無則預設為 50% (0.5)
+let userVolumePref = parseFloat(localStorage.getItem('ytm_volume_pref')) || 0.5;
+
+// ==========================================
+// 1. 視窗控制與透明度
+// ==========================================
 await appWindow.setSize(new LogicalSize(FIXED_WIDTH, FIXED_HEIGHT));
+
 async function initYtmWindow() {
     if (!ytmWindowCache) {
         ytmWindowCache = await Window.getByLabel('ytm-bg');
@@ -27,9 +36,7 @@ async function initYtmWindow() {
                 event.preventDefault();
                 await ytmWindowCache.hide();
                 isYtmVisible = false;
-                document
-                    .getElementById('show-ytm-btn')
-                    ?.classList.remove('pin-active');
+                document.getElementById('show-ytm-btn')?.classList.remove('pin-active');
             });
 
             await ytmWindowCache.onResized(async () => {
@@ -38,9 +45,7 @@ async function initYtmWindow() {
                     await ytmWindowCache.unminimize();
                     await ytmWindowCache.hide();
                     isYtmVisible = false;
-                    document
-                        .getElementById('show-ytm-btn')
-                        ?.classList.remove('pin-active');
+                    document.getElementById('show-ytm-btn')?.classList.remove('pin-active');
                 }
             });
         }
@@ -51,7 +56,6 @@ async function initYtmWindow() {
 initYtmWindow();
 
 document.getElementById('show-ytm-btn').classList.add('pin-active');
-
 document.getElementById('opacity-slider').addEventListener('input', (e) => {
     document.querySelector('.player-container').style.opacity = e.target.value;
 });
@@ -118,10 +122,6 @@ async function setupTray() {
         const quitItem = await MenuItem.new({
             text: '❌ 徹底關閉程式',
             action: async () => {
-                // const windows = await getAllWindows();
-                // for (const w of windows) {
-                //     await w.close();
-                // }
                 await exit(0);
             }
         });
@@ -149,8 +149,6 @@ setupTray();
 // ==========================================
 // 3. 本地動態廣告黑名單與潛伏特務
 // ==========================================
-
-// 💡 1. 建立預設黑名單，並嘗試從 localStorage 讀取最新資料庫
 const DEFAULT_AD_DOMAINS = [
     'doubleclick.net',
     'googleadservices.com',
@@ -161,23 +159,16 @@ const DEFAULT_AD_DOMAINS = [
 
 let currentAdDomains = JSON.parse(localStorage.getItem('ytm_ad_domains')) || DEFAULT_AD_DOMAINS;
 
-// 💡 2. 提供一個全域函數，未來可以在設定視窗呼叫它來更新資料庫
 window.updateAdDomains = (newDomains) => {
     currentAdDomains = newDomains;
     localStorage.setItem('ytm_ad_domains', JSON.stringify(currentAdDomains));
     console.log("🛡️ 廣告黑名單已更新並存入本地資料庫！");
 };
 
-let isSeeking = false;
-let latestYtmState = { isPaused: true };
-
-// 💡 3. 將寫死的腳本改為「動態生成的函數」，每次呼叫都會帶入最新的 currentAdDomains
 function getAgentScript() {
     return `
         (() => {
             if (!window.__TAURI__ || !window.__TAURI__.event) return;
-            
-            // 同步最新黑名單
             window.__AD_DOMAINS__ = ${JSON.stringify(currentAdDomains)};
 
             if (!window.__YTM_ADBLOCK_INSTALLED__) {
@@ -204,7 +195,7 @@ function getAgentScript() {
             if (window.__YTM_AGENT_INSTALLED__) return;
             window.__YTM_AGENT_INSTALLED__ = true;
 
-            console.log("✅ YTM 純事件驅動特務已潛入！效能極致最佳化。");
+            let isAdHandling = false;
 
             const emitStatus = (video) => {
                 const titleEl = document.querySelector('ytmusic-player-bar .title');
@@ -227,7 +218,9 @@ function getAgentScript() {
             const killAdsAndPopups = (video) => {
                 const isAd = document.querySelector('.ad-showing') || document.querySelector('.ytp-ad-player-overlay');
                 if (isAd) {
+                    isAdHandling = true;
                     video.muted = true;
+                    video.playbackRate = 16.0;
 
                     if (!isNaN(video.duration) && video.currentTime < video.duration - 0.5) {
                         video.currentTime = video.duration - 0.1;
@@ -239,11 +232,15 @@ function getAgentScript() {
                     }
                     
                     if (video.paused) {
-                        // 使用 catch 避免瀏覽器擋下自動播放產生的 Promise 報錯
                         video.play().catch(() => {}); 
                     }
-                    video.playbackRate = 16.0;
-                    
+                } else {
+                    // 如果剛剛處理完廣告，現在切回正片，確保解除靜音，並恢復正常語速
+                    if (isAdHandling) {
+                        video.muted = false;
+                        video.playbackRate = 1.0;
+                        isAdHandling = false;
+                    }
                 }
 
                 const youThereBtn = document.querySelector('.ytmusic-you-there-renderer yt-button-renderer[dialog-confirm] button');
@@ -260,21 +257,18 @@ function getAgentScript() {
                 });
             };
 
-            // 💡 尋找影片標籤，並掛載「純事件監聽」
             const attachEvents = () => {
                 const video = document.querySelector('video');
                 if (!video) return false;
                 
-                if (video.dataset.agentAttached) return true; // 避免重複掛載
+                if (video.dataset.agentAttached) return true;
                 video.dataset.agentAttached = "true";
 
-                // 💡 核心改動：不再用 setInterval，而是跟著影片的呼吸一起動！
                 video.addEventListener('timeupdate', () => {
-                    killAdsAndPopups(video); // 影片在跑的時候，高頻率檢查廣告
-                    emitStatus(video);       // 影片在跑的時候，自動推播最新秒數給進度條
+                    killAdsAndPopups(video); 
+                    emitStatus(video);       
                 });
 
-                // 其他狀態的瞬間更新
                 video.addEventListener('play', () => emitStatus(video));
                 video.addEventListener('pause', () => emitStatus(video));
                 video.addEventListener('volumechange', () => emitStatus(video));
@@ -282,8 +276,6 @@ function getAgentScript() {
                 return true;
             };
 
-            // YouTube 剛載入時可能還沒有 <video> 標籤，
-            // 所以我們設一個輕量級的觀察者，一旦找到 video 就掛載事件並自我銷毀。
             if (!attachEvents()) {
                 const initObserver = setInterval(() => {
                     if (attachEvents()) clearInterval(initObserver);
@@ -294,8 +286,10 @@ function getAgentScript() {
 }
 
 // 每 3 秒呼叫一次 getAgentScript()，確保特務帶上最新的黑名單
+// 💡 每次呼叫時，順便把我們記憶的「安全音量」強行灌入 YTM，當作雙重保險
 setInterval(() => {
     invoke('execute_ytm_js', { script: getAgentScript() }).catch(() => { });
+    sendCommand('volume', userVolumePref);
 }, 3000);
 
 async function sendCommand(action, value = null) {
@@ -306,7 +300,11 @@ async function sendCommand(action, value = null) {
             if ('${action}' === 'play') video.play();
             if ('${action}' === 'pause') video.pause();
             if ('${action}' === 'seek') video.currentTime = ${value};
-            if ('${action}' === 'volume') video.volume = ${value};
+            if ('${action}' === 'volume') {
+                video.volume = ${value};
+                const slider = document.getElementById('volume-slider');
+                if (slider) slider.value = ${value} * 100;
+            }
             if ('${action}' === 'next') { const btn = document.querySelector('.next-button'); if(btn) btn.click(); }
             if ('${action}' === 'prev') { const btn = document.querySelector('.previous-button'); if(btn) btn.click(); }
         })();
@@ -329,6 +327,9 @@ const ui = {
     volume: document.getElementById('volume-bar')
 };
 
+// 💡 初始化音量拉桿的數值為儲存的偏好
+ui.volume.value = userVolumePref;
+
 function formatTime(seconds) {
     if (isNaN(seconds) || seconds < 0) return "0:00";
     const m = Math.floor(seconds / 60);
@@ -340,19 +341,33 @@ listen('ytm_status', (event) => {
     const state = event.payload;
     latestYtmState = state;
 
+    // 🛡️ 絕對音量鎖：檢查是否出現「幽靈音量暴增」
+    // 如果 YTM 回傳的音量比我們記憶的音量大了超過 15% (0.15)，或者直接變成 100% (1.0)
+    // 我們就判定為「WebKit 異常重置」，立刻強制壓回記憶音量，並且「不更新前端 UI 音量條」
+    if (state.volume > userVolumePref + 0.15 || state.volume === 1.0) {
+        if (userVolumePref < 0.85) { // 除非使用者本來就設很大聲
+            console.warn(`🛡️ 攔截到異常音量暴增！(YTM: ${state.volume}, 記憶: ${userVolumePref})。強制壓回！`);
+            sendCommand('volume', userVolumePref);
+            return; // 中斷後續的音量更新邏輯
+        }
+    }
+
     if (isSeeking) return;
 
     if (ui.title.innerText !== state.title) ui.title.innerText = state.title;
     const newArtist = state.artist && state.artist !== "無" ? state.artist : '';
     if (ui.artist.innerText !== newArtist) ui.artist.innerText = newArtist;
-    console.log("url:", state.url);
+    
     ui.progress.max = state.duration || 100;
     ui.progress.value = state.currentTime || 0;
     ui.currentTime.innerText = formatTime(state.currentTime);
     ui.duration.innerText = formatTime(state.duration);
 
+    // 如果使用者沒有在拖動音量條，才根據安全的狀態更新 UI
     if (document.activeElement !== ui.volume) {
         ui.volume.value = state.volume;
+        // 確保內部記憶體也跟著合法狀態同步
+        userVolumePref = state.volume;
     }
 
     ui.playBtn.innerText = state.isPaused ? "▶️" : "⏸️";
@@ -377,42 +392,35 @@ ui.progress.addEventListener('change', () => {
     isSeeking = false;
 });
 
+// 💡 儲存使用者手動調整的音量
 ui.volume.addEventListener('input', () => {
-    sendCommand('volume', parseFloat(ui.volume.value));
+    const newVol = parseFloat(ui.volume.value);
+    userVolumePref = newVol; // 更新內部變數
+    localStorage.setItem('ytm_volume_pref', newVol.toString()); // 永久儲存到本地
+    sendCommand('volume', newVol); // 立即發送給 YTM
 });
 
 let scaleTimeout;
 appWindow.onScaleChanged(async ({ scaleFactor }) => {
-    console.log("螢幕縮放比例改變:", scaleFactor);
-    
-    // 清除上一次的延遲，確保只在最後一次變動後執行
     clearTimeout(scaleTimeout);
-    
     scaleTimeout = setTimeout(async () => {
-        // 💡 等系統穩定後，強行設定邏輯尺寸
-        // LogicalSize 會自動根據當前的 scaleFactor 轉換成正確的物理像素
         await appWindow.setSize(new LogicalSize(FIXED_WIDTH, FIXED_HEIGHT));
-        console.log("尺寸已強制校正為:", FIXED_WIDTH, FIXED_HEIGHT);
-    }, 150); // 150ms 的延遲通常足以避開系統的競態條件
+    }, 150);
 });
 
-// 在 main.js 的 UI 事件綁定區塊加入
 document.getElementById('download-btn').addEventListener('click', async () => {
     if (!latestYtmState.url || latestYtmState.url.includes('music.youtube.com/watch') === false) {
         console.error("尚未偵測到可下載的歌曲網址！");
         return;
     }
 
-    // 從 localStorage 取得使用者設定的下載路徑，若無則預設為下載資料夾
     const savePath = localStorage.getItem('download_path') || 'C:/Downloads';
-    
     const btn = document.getElementById('download-btn');
-    btn.innerText = "⏳"; // 顯示處理中
+    btn.innerText = "⏳";
     btn.style.pointerEvents = "none";
 
     try {
         console.log("準備下載:", latestYtmState.url);
-        // 💡 呼叫我們在 Rust 定義的指令
         const result = await invoke('download_music', { 
             url: latestYtmState.url, 
             path: savePath 
