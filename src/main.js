@@ -228,16 +228,22 @@ function getAgentScript() {
                 const isAd = document.querySelector('.ad-showing') || document.querySelector('.ytp-ad-player-overlay');
                 if (isAd) {
                     video.muted = true;
-                    video.playbackRate = 16.0;
-                    
+
+                    if (!isNaN(video.duration) && video.currentTime < video.duration - 0.5) {
+                        video.currentTime = video.duration - 0.1;
+                    }
+
                     const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
                     if (skipBtn) {
                         skipBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                     }
                     
-                    if (!isNaN(video.duration) && video.currentTime < video.duration - 0.5) {
-                        video.currentTime = video.duration - 0.1;
+                    if (video.paused) {
+                        // 使用 catch 避免瀏覽器擋下自動播放產生的 Promise 報錯
+                        video.play().catch(() => {}); 
                     }
+                    video.playbackRate = 16.0;
+                    
                 }
 
                 const youThereBtn = document.querySelector('.ytmusic-you-there-renderer yt-button-renderer[dialog-confirm] button');

@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "withGlobalTauri": true,
     "windows": [
       {
@@ -27,7 +28,8 @@
         "title": "YTM Background",
         "label": "ytm-bg",
         "url": "https://music.youtube.com",
-        "visible": true
+        "visible": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
       },
       {
         "title": "YTM Widget 設定",
@@ -45,8 +47,8 @@
   },
   "bundle": {
     "externalBin": [
-    "binaries/yt-dlp"
-  ],
+      "binaries/yt-dlp"
+    ],
     "active": true,
     "targets": "all",
     "icon": [

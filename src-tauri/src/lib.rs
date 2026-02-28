@@ -2,21 +2,7 @@
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
-// use tauri_plugin_dialog::DialogExt; // 💡 引入對話框插件
 
-// #[tauri::command]
-// async fn open_folder_dialog(app: tauri::AppHandle) -> Result<String, String> {
-//     // 💡 呼叫系統原生選擇資料夾對話框
-//     let folder = app.dialog()
-//         .file()
-//         .pick_folder();
-
-//     if let Some(path) = folder {
-//         Ok(path.to_string())
-//     } else {
-//         Err("取消選擇".into())
-//     }
-// }
 
 #[tauri::command]
 async fn download_music(app: tauri::AppHandle, url: String, path: String) -> Result<String, String> {
@@ -51,6 +37,11 @@ fn execute_ytm_js(app: tauri::AppHandle, script: String) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+                #[cfg(target_os = "macos")]
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                Ok(())
+            })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
