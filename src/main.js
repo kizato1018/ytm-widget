@@ -7,6 +7,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { exit } from '@tauri-apps/plugin-process';
 
+// 💡 修正 2：使用 import 引入圖片，讓 Vite 打包工具能正確解析路徑！
+import playIcon from './assest/play.png';
+import pauseIcon from './assest/pause.png';
+
 const appWindow = getCurrentWindow();
 const FIXED_WIDTH = 320;
 const FIXED_HEIGHT = 160;
@@ -19,7 +23,6 @@ let isYtmVisible = true;
 let isSeeking = false;
 let latestYtmState = { isPaused: true, url: '' };
 
-// 💡 讀取上次儲存的音量，若無則預設為 50% (0.5)
 let userVolumePref = parseFloat(localStorage.getItem('ytm_volume_pref')) || 0.5;
 
 // ==========================================
@@ -204,13 +207,16 @@ function getAgentScript() {
                 let formattedArtist = artistEl ? artistEl.innerText : "無";
                 formattedArtist = formattedArtist.replace(/\\n/g, '').replace(/\\s*•\\s*/g, ' • ').trim();
                 
+                // 💡 修正 1：檢查標題是否為空字串，避免覆蓋掉「連線中...」
+                let titleText = titleEl ? titleEl.innerText.trim() : "";
+                
                 window.__TAURI__.event.emit('ytm_status', {
                     url: window.location.href,
                     currentTime: video.currentTime || 0,
                     duration: isNaN(video.duration) ? 0 : video.duration,
                     isPaused: video.paused,
                     volume: video.volume,
-                    title: titleEl ? titleEl.innerText : "等待播放中...",
+                    title: titleText ? titleText : "等待播放中...",
                     artist: formattedArtist
                 });
             };
@@ -235,7 +241,6 @@ function getAgentScript() {
                         video.play().catch(() => {}); 
                     }
                 } else {
-                    // 如果剛剛處理完廣告，現在切回正片，確保解除靜音，並恢復正常語速
                     if (isAdHandling) {
                         video.muted = false;
                         video.playbackRate = 1.0;
@@ -286,10 +291,9 @@ function getAgentScript() {
 }
 
 // 每 3 秒呼叫一次 getAgentScript()，確保特務帶上最新的黑名單
-// 💡 每次呼叫時，順便把我們記憶的「安全音量」強行灌入 YTM，當作雙重保險
+// 💡 修正 3：移除這裡的 sendCommand('volume')，停止與 YTM 互相搶奪音量控制權
 setInterval(() => {
     invoke('execute_ytm_js', { script: getAgentScript() }).catch(() => { });
-    sendCommand('volume', userVolumePref);
 }, 3000);
 
 async function sendCommand(action, value = null) {
@@ -327,7 +331,6 @@ const ui = {
     volume: document.getElementById('volume-bar')
 };
 
-// 💡 初始化音量拉桿的數值為儲存的偏好
 ui.volume.value = userVolumePref;
 
 function formatTime(seconds) {
@@ -341,14 +344,12 @@ listen('ytm_status', (event) => {
     const state = event.payload;
     latestYtmState = state;
 
-    // 🛡️ 絕對音量鎖：檢查是否出現「幽靈音量暴增」
-    // 如果 YTM 回傳的音量比我們記憶的音量大了超過 15% (0.15)，或者直接變成 100% (1.0)
-    // 我們就判定為「WebKit 異常重置」，立刻強制壓回記憶音量，並且「不更新前端 UI 音量條」
+    // 🛡️ 絕對音量鎖：只在偵測到異常暴增時才強制壓回
     if (state.volume > userVolumePref + 0.15 || state.volume === 1.0) {
-        if (userVolumePref < 0.85) { // 除非使用者本來就設很大聲
+        if (userVolumePref < 0.85) { 
             console.warn(`🛡️ 攔截到異常音量暴增！(YTM: ${state.volume}, 記憶: ${userVolumePref})。強制壓回！`);
             sendCommand('volume', userVolumePref);
-            return; // 中斷後續的音量更新邏輯
+            return; 
         }
     }
 
@@ -363,27 +364,25 @@ listen('ytm_status', (event) => {
     ui.currentTime.innerText = formatTime(state.currentTime);
     ui.duration.innerText = formatTime(state.duration);
 
-    // 如果使用者沒有在拖動音量條，才根據安全的狀態更新 UI
     if (document.activeElement !== ui.volume) {
         ui.volume.value = state.volume;
-        // 確保內部記憶體也跟著合法狀態同步
         userVolumePref = state.volume;
     }
 
-    // 💡 替換：更新播放/暫停圖片 src
+    // 💡 修正 2：使用已引入的變數來更新圖片
     const playPauseImg = document.getElementById('play-pause-img');
     if (playPauseImg) {
-        playPauseImg.src = state.isPaused ? "./assest/play.png" : "./assest/pause.png";
+        playPauseImg.src = state.isPaused ? playIcon : pauseIcon;
     }
 });
 
 ui.playBtn.addEventListener('click', () => {
     const willPause = !latestYtmState.isPaused;
     
-    // 💡 替換：更新播放/暫停圖片 src
+    // 💡 修正 2：使用已引入的變數來更新圖片
     const playPauseImg = document.getElementById('play-pause-img');
     if (playPauseImg) {
-        playPauseImg.src = willPause ? "./assest/play.png" : "./assest/pause.png";
+        playPauseImg.src = willPause ? playIcon : pauseIcon;
     }
     
     latestYtmState.isPaused = willPause;
@@ -402,12 +401,11 @@ ui.progress.addEventListener('change', () => {
     isSeeking = false;
 });
 
-// 💡 儲存使用者手動調整的音量
 ui.volume.addEventListener('input', () => {
     const newVol = parseFloat(ui.volume.value);
-    userVolumePref = newVol; // 更新內部變數
-    localStorage.setItem('ytm_volume_pref', newVol.toString()); // 永久儲存到本地
-    sendCommand('volume', newVol); // 立即發送給 YTM
+    userVolumePref = newVol; 
+    localStorage.setItem('ytm_volume_pref', newVol.toString()); 
+    sendCommand('volume', newVol); 
 });
 
 let scaleTimeout;
@@ -428,7 +426,6 @@ document.getElementById('download-btn').addEventListener('click', async () => {
     const btn = document.getElementById('download-btn');
     const dlImg = document.getElementById('download-img');
     
-    // 💡 替換：讓圖片變成半透明狀態代表處理中
     if (dlImg) dlImg.style.opacity = "0.3";
     btn.style.pointerEvents = "none";
 
@@ -442,7 +439,6 @@ document.getElementById('download-btn').addEventListener('click', async () => {
     } catch (error) {
         console.error("下載失敗:", error);
     } finally {
-        // 💡 替換：恢復圖片透明度
         if (dlImg) dlImg.style.opacity = "1";
         btn.style.pointerEvents = "auto";
     }
