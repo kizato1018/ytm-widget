@@ -3,31 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <title>YTM Widget 設定</title>
+  
+  <script>
+    const savedTheme = localStorage.getItem('ytm_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  </script>
+
   <style>
-    body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 20px; margin: 0; user-select: none; }
-    .tab { display: flex; border-bottom: 1px solid #444; margin-bottom: 20px; }
-    .tab button { background: none; border: none; color: white; padding: 10px 20px; cursor: pointer; border-bottom: 2px solid #ff4444; font-weight: bold; font-size: 14px;}
+    /* 💡 設定頁面的主題變數 */
+    :root {
+        --bg-color: #f5f5f5;
+        --text-color: #333333;
+        --border-color: #dddddd;
+        --input-bg: #ffffff;
+        --btn-bg: #dddddd;
+        --btn-hover: #cccccc;
+    }
+    [data-theme="dark"] {
+        --bg-color: #1a1a1a;
+        --text-color: #ffffff;
+        --border-color: #444444;
+        --input-bg: #333333;
+        --btn-bg: #444444;
+        --btn-hover: #555555;
+    }
+
+    body { font-family: sans-serif; background: var(--bg-color); color: var(--text-color); padding: 20px; margin: 0; user-select: none; transition: 0.3s; }
+    .tab { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
+    .tab button { background: none; border: none; color: var(--text-color); padding: 10px 20px; cursor: pointer; border-bottom: 2px solid #ff4444; font-weight: bold; font-size: 14px;}
     .setting-group { margin-bottom: 20px; }
-    label { display: block; margin-bottom: 8px; font-size: 13px; color: #ccc; }
-    input { width: 100%; padding: 10px; box-sizing: border-box; background: #333; border: 1px solid #555; color: #ffffff; border-radius: 6px; font-family: monospace;}
+    label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-color); opacity: 0.8; }
     
-    /* 💡 新增一個 flex 容器樣式來排版輸入框和按鈕 */
+    input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-color); border-radius: 6px; font-family: monospace;}
+    
     .input-row { display: flex; gap: 8px; }
-    .input-row input { flex: 1; /* 讓輸入框佔滿剩下的空間 */ }
-    .input-row button { background: #444; color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-weight: bold; }
-    .input-row button:hover { background: #555; }
+    .input-row input { flex: 1; }
+    .input-row button { background: var(--btn-bg); color: var(--text-color); border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-weight: bold; }
+    .input-row button:hover { background: var(--btn-hover); }
+
+    .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer;}
+    .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .checkbox-group span { font-size: 14px; color: var(--text-color); }
   </style>
 </head>
 <body>
   <div class="tab">
     <button>一般設定</button>
   </div>
+  
   <div class="setting-group">
     <label>音樂下載目錄</label>
     <div class="input-row">
-      <input id="download-path-input" type="text" value="C:\Users\Downloads\Music" readonly title="請點擊右側按鈕選擇路徑">
+      <input id="download-path-input" type="text" readonly title="請點擊右側按鈕選擇路徑">
       <button id="browse-btn">瀏覽</button>
     </div>
+  </div>
+
+  <div class="setting-group">
+    <label>介面外觀</label>
+    <label class="checkbox-group">
+      <input type="checkbox" id="dark-mode-checkbox">
+      <span>啟用深色模式</span>
+    </label>
+  </div>
+
+  <div class="setting-group">
+    <label class="checkbox-group">
+      <input type="checkbox" id="autostart-checkbox">
+      <span>開機時自動啟動 YTM Widget</span>
+    </label>
   </div>
 
   <script type="module" src="./settings.js"></script>

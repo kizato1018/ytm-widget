@@ -370,12 +370,22 @@ listen('ytm_status', (event) => {
         userVolumePref = state.volume;
     }
 
-    ui.playBtn.innerText = state.isPaused ? "▶️" : "⏸️";
+    // 💡 替換：更新播放/暫停圖片 src
+    const playPauseImg = document.getElementById('play-pause-img');
+    if (playPauseImg) {
+        playPauseImg.src = state.isPaused ? "./assest/play.png" : "./assest/pause.png";
+    }
 });
 
 ui.playBtn.addEventListener('click', () => {
     const willPause = !latestYtmState.isPaused;
-    ui.playBtn.innerText = willPause ? "▶️" : "⏸️";
+    
+    // 💡 替換：更新播放/暫停圖片 src
+    const playPauseImg = document.getElementById('play-pause-img');
+    if (playPauseImg) {
+        playPauseImg.src = willPause ? "./assest/play.png" : "./assest/pause.png";
+    }
+    
     latestYtmState.isPaused = willPause;
     sendCommand(willPause ? 'pause' : 'play');
 });
@@ -416,7 +426,10 @@ document.getElementById('download-btn').addEventListener('click', async () => {
 
     const savePath = localStorage.getItem('download_path') || 'C:/Downloads';
     const btn = document.getElementById('download-btn');
-    btn.innerText = "⏳";
+    const dlImg = document.getElementById('download-img');
+    
+    // 💡 替換：讓圖片變成半透明狀態代表處理中
+    if (dlImg) dlImg.style.opacity = "0.3";
     btn.style.pointerEvents = "none";
 
     try {
@@ -429,7 +442,13 @@ document.getElementById('download-btn').addEventListener('click', async () => {
     } catch (error) {
         console.error("下載失敗:", error);
     } finally {
-        btn.innerText = "📥";
+        // 💡 替換：恢復圖片透明度
+        if (dlImg) dlImg.style.opacity = "1";
         btn.style.pointerEvents = "auto";
     }
+});
+
+listen('theme_changed', (event) => {
+    const newTheme = event.payload;
+    document.documentElement.setAttribute('data-theme', newTheme);
 });

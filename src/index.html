@@ -3,96 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <title>YTM Widget</title>
+  
+  <script>
+    const savedTheme = localStorage.getItem('ytm_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  </script>
+
   <style>
-    /* 基礎樣式 */
-    html, body {
-    background-color: transparent !important;
-    background: rgba(0, 0, 0, 0) !important;
-    font-family: sans-serif;
-    user-select: none;
-    color: white;
-    
-    margin: 0;
-    padding: 0;
-    overflow: hidden !important; 
-}
-    .player-container {
-        width: 320px; height: 160px; background-color: #1a1a1a; 
-        border-radius: 12px; padding: 10px 15px; box-sizing: border-box;
-        display: flex; flex-direction: column; justify-content: space-between;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        
+    /* 💡 定義淺色與深色的主題變數 */
+    :root {
+        --bg-color: #ffffff;
+        --text-main: #333333;
+        --text-sub: #888888;
+        --icon-filter: none; /* 淺色模式：保持原本的黑色圖片 */
+        --shadow-color: rgba(0,0,0,0.15);
     }
 
-    /* 💡 獨立的拖曳區與控制按鈕 */
+    [data-theme="dark"] {
+        --bg-color: #1a1a1a;
+        --text-main: #ffffff;
+        --text-sub: #aaaaaa;
+        --icon-filter: invert(1); /* 深色模式：將黑色圖片反轉為白色 */
+        --shadow-color: rgba(0,0,0,0.5);
+    }
+
+    /* 基礎樣式改用變數 */
+    html, body {
+        background-color: transparent !important;
+        background: rgba(0, 0, 0, 0) !important;
+        font-family: sans-serif;
+        user-select: none;
+        margin: 0;
+        padding: 0;
+        overflow: hidden !important; 
+    }
+    
+    .player-container {
+        width: 320px; height: 160px; 
+        background-color: var(--bg-color); /* 💡 使用變數 */
+        color: var(--text-main);           /* 💡 使用變數 */
+        border-radius: 12px; padding: 10px 15px; box-sizing: border-box;
+        display: flex; flex-direction: column; justify-content: space-between;
+        box-shadow: 0 4px 15px var(--shadow-color);
+        transition: background-color 0.3s, color 0.3s;
+    }
+
+    /* 頂部控制列 */
     .title-bar {
         display: flex; justify-content: space-between; align-items: center;
         height: 24px; cursor: grab; margin-bottom: 5px;
     }
     .title-bar:active { cursor: grabbing; }
-    .drag-text { flex-grow: 1; font-size: 12px; color: #888; font-weight: bold; letter-spacing: 1px;}
+    .drag-text { flex-grow: 1; font-size: 12px; color: var(--text-sub); font-weight: bold; letter-spacing: 1px;}
     
-    .window-controls { display: flex; gap: 8px; -webkit-app-region: no-drag; /* 確保按鈕不會變成拖曳區 */ }
-    .ctrl-btn { background: none; border: none; color: #aaa; cursor: pointer; font-size: 14px; padding: 0; transition: 0.2s;}
-    .ctrl-btn:hover { color: white; }
-    .pin-active { color: #ff4444 !important; /* 釘選啟動時變成紅色 */ }
+    .window-controls { display: flex; gap: 8px; -webkit-app-region: no-drag; align-items: center;}
+    .ctrl-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 14px; padding: 0; transition: 0.2s; display: flex; align-items: center; justify-content: center;}
+    .ctrl-btn:hover { color: var(--text-main); transform: scale(1.1); }
+    .pin-active { color: #ff4444 !important; }
 
-    /* 資訊行、進度條、控制鍵 (同前一版，簡單列出) */
-    /* 修改為上下排列，並確保文字過長時顯示點點點 (...) */
+    /* 歌曲資訊 */
     .row-info { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; overflow: hidden; white-space: nowrap; margin-bottom: 5px; width: 100%; }
-    .song-title { font-size: 15px; font-weight: bold; margin: 0; text-overflow: ellipsis; overflow: hidden; width: 100%; }
-    .song-artist { font-size: 12px; color: #aaa; margin: 3px 0 0 0; text-overflow: ellipsis; overflow: hidden; width: 100%; }
+    .song-title { font-size: 15px; font-weight: bold; margin: 0; text-overflow: ellipsis; overflow: hidden; width: 100%; color: var(--text-main);}
+    .song-artist { font-size: 12px; color: var(--text-sub); margin: 3px 0 0 0; text-overflow: ellipsis; overflow: hidden; width: 100%; }
     
-    /* 透明度滑桿的專屬樣式 */
-    #opacity-slider { width: 60px; height: 4px; margin-right: 8px; margin-top: 8px; cursor: pointer; accent-color: #888; }
-    .row-progress { display: flex; align-items: center; font-size: 11px; color: #aaa; }
+    /* 進度與透明度 */
+    #opacity-slider { width: 60px; height: 4px; margin-right: 8px; cursor: pointer; accent-color: var(--text-sub); }
+    .row-progress { display: flex; align-items: center; font-size: 11px; color: var(--text-sub); }
     input[type="range"] { flex-grow: 1; margin: 0 10px; cursor: pointer; accent-color: #ff0000; height: 4px; }
-    .row-controls { display: flex; justify-content: space-between; align-items: center; }
-    .play-controls button { background: none; border: none; cursor: pointer; color: white; font-size: 20px;}
-    .volume-controls { display: flex; align-items: center; gap: 5px; }
-    #volume-bar { width: 60px; }
+    
+    /* 底部控制列 */
+    .row-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 2px;}
+    
+    /* 圖片按鈕專屬 CSS */
+    .play-controls { display: flex; align-items: center; gap: 15px; }
+    .play-controls button { background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
+    .play-controls button:hover { transform: scale(1.1); }
+    
+    .icon-sm { width: 20px; height: 20px; object-fit: contain; }
+    .icon-md { width: 24px; height: 24px; object-fit: contain; }
+    .icon-lg { width: 34px; height: 34px; object-fit: contain; }
+    
+    /* 💡 最關鍵的一行：依照主題變數決定要不要反轉圖片顏色 */
+    .icon-sm, .icon-md, .icon-lg { filter: var(--icon-filter); transition: filter 0.3s; }
+
+    .volume-controls { display: flex; align-items: center; gap: 8px; }
+    #volume-bar { width: 60px; margin: 0; }
   </style>
 </head>
 <body>
   <div class="player-container">
-    
     <div class="title-bar" data-tauri-drag-region>
         <div class="drag-text" data-tauri-drag-region>🎵 YTM WIDGET</div>
         <div class="window-controls">
             <input type="range" id="opacity-slider" min="0.1" max="1" step="0.05" value="1" title="調整面板透明度">
             <button id="show-ytm-btn" class="ctrl-btn" title="顯示/隱藏 YTM">🌐</button>
             <button id="pin-btn" class="ctrl-btn pin-active" title="切換永遠置頂">📌</button>
-            <!-- <button id="min-btn" class="ctrl-btn" title="縮小至系統列">🗕</button> -->
             <button id="close-btn" class="ctrl-btn" title="隱藏面板">✖</button>
         </div>
     </div>
-
     <div class="row-info">
         <h3 id="song-title" class="song-title">連線中...</h3>
         <span id="song-artist" class="song-artist">- 請稍候</span>
     </div>
-
     <div class="row-progress">
         <span id="current-time">0:00</span>
         <input type="range" id="progress-bar" min="0" max="100" value="0" step="1">
         <span id="duration">0:00</span>
     </div>
-
     <div class="row-controls">
         <div class="play-controls">
-            <button id="prev-btn">⏮️</button>
-            <button id="play-pause-btn" style="font-size: 28px;">⏯️</button>
-            <button id="next-btn">⏭️</button>
+            <button id="prev-btn"><img src="./assest/back.png" class="icon-md" alt="上一首"></button>
+            <button id="play-pause-btn"><img id="play-pause-img" src="./assest/play.png" class="icon-lg" alt="播放/暫停"></button>
+            <button id="next-btn"><img src="./assest/next.png" class="icon-md" alt="下一首"></button>
         </div>
         <div class="window-controls">
-            <button id="download-btn" class="ctrl-btn" title="下載當前歌曲">📥</button>
+            <button id="download-btn" class="ctrl-btn" title="下載當前歌曲">
+                <img id="download-img" src="./assest/downloading.png" class="icon-sm" alt="下載">
+            </button>
         </div>
         <div class="volume-controls">
-            <span>🔊</span>
+            <img src="./assest/volume.png" class="icon-sm" alt="音量">
             <input type="range" id="volume-bar" min="0" max="1" value="0.5" step="0.05">
         </div>
     </div>
-
   </div>
   <script type="module" src="./main.js"></script>
 </body>

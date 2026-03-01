@@ -1,20 +1,29 @@
 // 💡 關鍵修正：引入 Manager 特徵，解鎖 AppHandle 的視窗控制能力
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
-
+use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
-async fn download_music(app: tauri::AppHandle, url: String, path: String) -> Result<String, String> {
-    let sidecar_command = app.shell().sidecar("yt-dlp").map_err(|e| e.to_string())?
+async fn download_music(
+    app: tauri::AppHandle,
+    url: String,
+    path: String,
+) -> Result<String, String> {
+    let sidecar_command = app
+        .shell()
+        .sidecar("yt-dlp")
+        .map_err(|e| e.to_string())?
         .args([
-            // "-x", 
-            // "--audio-format", "m4a", 
-            "-f", "ba[ext=m4a]",
+            // "-x",
+            // "--audio-format", "m4a",
+            "-f",
+            "ba[ext=m4a]",
             "--no-playlist",
-            "--audio-quality", "0",
-            "-o", &format!("{}/%(title)s.%(ext)s", path),
-            &url
+            "--audio-quality",
+            "0",
+            "-o",
+            &format!("{}/%(title)s.%(ext)s", path),
+            &url,
         ]);
 
     let (mut rx, _child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
@@ -38,11 +47,12 @@ fn execute_ytm_js(app: tauri::AppHandle, script: String) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app| {
-                #[cfg(target_os = "macos")]
-                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-                Ok(())
-            })
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {

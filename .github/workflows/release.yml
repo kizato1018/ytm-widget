@@ -1,6 +1,5 @@
 name: "自動打包發布 (Release)"
 
-# 觸發條件：當你推送標籤 (例如 v1.0.0) 或手動點擊執行時觸發
 on:
   push:
     tags:
@@ -10,12 +9,11 @@ on:
 jobs:
   build-and-release:
     permissions:
-      contents: write # 允許機器人幫你在 GitHub 建立 Release 頁面
+      contents: write
     strategy:
       fail-fast: false
       matrix:
-        # 定義三台雲端虛擬機：Mac、Linux、Windows
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        platform: [macos-latest, macos-13, ubuntu-22.04, windows-latest]
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -44,7 +42,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # 打包成功後，會以你推送的標籤名稱 (例如 v1.0.0) 建立 Release
           tagName: ${{ github.ref_name }}
           releaseName: 'YTM Widget ${{ github.ref_name }}'
           releaseBody: |
@@ -54,5 +51,83 @@ jobs:
             - 支援 macOS (.dmg / .app)
             - 支援 Linux (.deb / .AppImage)
             包含內建 yt-dlp 引擎。
-          releaseDraft: true
+          releaseDraft: false # 💡 必須設為 false，機器人才抓得到檔案計算 SHA256
           prerelease: false
+
+  # ==========================================
+  # 💡 新增：自動更新 Homebrew Tap 的任務
+  # ==========================================
+  update-homebrew:
+    needs: build-and-release # 確保打包任務先完成
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 取得 Homebrew Tap 倉庫
+        uses: actions/checkout@v4
+        with:
+          repository: kizato1018/homebrew-tap # 你的 Tap 倉庫名稱
+          token: ${{ secrets.TAP_GITHUB_TOKEN }} # 💡 這裡需要一組特殊的密鑰 (下方有教學)
+          path: homebrew-tap
+
+      - name: 🔄 更新 Cask 檔案
+        run: |
+          # 1. 取得版本號 (去除 'v')
+          VERSION="${{ github.ref_name }}"
+          VERSION=${VERSION#v}
+          
+          # 2. 下載剛發布的 Mac 檔案來計算 SHA256
+          wget "https://github.com/kizato1018/ytm-widget/releases/download/v${VERSION}/ytm-widget_${VERSION}_aarch64.dmg"
+          wget "https://github.com/kizato1018/ytm-widget/releases/download/v${VERSION}/ytm-widget_${VERSION}_x64.dmg"
+          
+          SHA_ARM=$(sha256sum ytm-widget_${VERSION}_aarch64.dmg | awk '{print $1}')
+          SHA_INTEL=$(sha256sum ytm-widget_${VERSION}_x64.dmg | awk '{print $1}')
+          
+          # 3. 進入 Tap 倉庫，重寫 ytm-widget.rb
+          cd homebrew-tap
+          
+          # 使用 sed 取代舊的版本號與 SHA256 佔位符
+          sed -i "s/version \".*\"/version \"${VERSION}\"/g" Casks/ytm-widget.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA_ARM}\"/g" Casks/ytm-widget.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA_INTEL}\"/g" Casks/ytm-widget.rb
+          
+          # 特例：處理 Intel 區塊的第二個 SHA256 佔位符替換
+          # 因為上面的 sed 會把兩個 sha256 都換成 ARM 的，我們用一點腳本魔法修正：
+          cat << EOF > Casks/ytm-widget.rb
+          cask "ytm-widget" do
+            version "${VERSION}"
+
+            if Hardware::CPU.intel?
+              url "https://github.com/kizato1018/ytm-widget/releases/download/v#{version}/ytm-widget_#{version}_x64.dmg"
+              sha256 "${SHA_INTEL}"
+            else
+              url "https://github.com/kizato1018/ytm-widget/releases/download/v#{version}/ytm-widget_#{version}_aarch64.dmg"
+              sha256 "${SHA_ARM}"
+            end
+
+            name "YTM Widget"
+            desc "YouTube Music tray widget with ad-blocking and track download"
+            homepage "https://github.com/kizato1018/ytm-widget"
+
+            app "ytm-widget.app"
+
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-dr", "com.apple.quarantine", "#{appdir}/ytm-widget.app"]
+            end
+
+            uninstall quit: "com.kizato.ytm-widget"
+
+            zap trash: [
+              "~/Library/Application Support/com.kizato.ytm-widget",
+              "~/Library/Caches/com.kizato.ytm-widget",
+              "~/Library/Logs/ytm-widget",
+              "~/Library/Preferences/com.kizato.ytm-widget.plist"
+            ]
+          end
+          EOF
+          
+          # 4. 提交並推送到你的 homebrew-tap 倉庫
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/ytm-widget.rb
+          git commit -m "🚀 Auto-update ytm-widget to v${VERSION}"
+          git push
