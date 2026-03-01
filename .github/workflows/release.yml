@@ -12,8 +12,17 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
+      # 💡 捨棄單純的 platform 陣列，改用 include 來為不同的任務指定「編譯目標 (target)」
       matrix:
-        platform: [macos-latest, macos-13, ubuntu-22.04, windows-latest]
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin' # 🍎 M晶片 Mac
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'  # 🍏 Intel Mac (由 M晶片代為交叉編譯)
+          - platform: ubuntu-22.04
+            args: ''                              # 🐧 Linux (保持預設)
+          - platform: windows-latest
+            args: ''                              # 🪟 Windows (保持預設)
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -27,8 +36,11 @@ jobs:
 
       - name: 🦀 安裝 Rust 環境
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # 💡 告訴 Rust 準備好兩種 Mac 架構的編譯工具包
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
 
-      - name: 🐧 安裝 Linux 專用系統依賴 (僅限 Ubuntu)
+      - name: 🐧 安裝 Linux 專用系統依賴
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
@@ -42,6 +54,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # 💡 這裡會自動帶入我們上面設定的 args (決定是編譯 M晶片 還是 Intel)
+          args: ${{ matrix.args }} 
           tagName: ${{ github.ref_name }}
           releaseName: 'YTM Widget ${{ github.ref_name }}'
           releaseBody: |
@@ -51,9 +65,8 @@ jobs:
             - 支援 macOS (.dmg / .app)
             - 支援 Linux (.deb / .AppImage)
             包含內建 yt-dlp 引擎。
-          releaseDraft: false # 💡 必須設為 false，機器人才抓得到檔案計算 SHA256
+          releaseDraft: false
           prerelease: false
-
   # ==========================================
   # 💡 新增：自動更新 Homebrew Tap 的任務
   # ==========================================
