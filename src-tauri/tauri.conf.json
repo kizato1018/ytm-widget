@@ -25,13 +25,6 @@
         "transparent": true
       },
       {
-        "title": "YTM Background",
-        "label": "ytm-bg",
-        "url": "https://music.youtube.com",
-        "visible": true,
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-      },
-      {
         "title": "YTM Widget 設定",
         "label": "settings",
         "url": "/settings.html",
