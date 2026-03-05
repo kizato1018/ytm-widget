@@ -264,10 +264,15 @@ function getAgentScript() {
     `;
 }
 
-// 每 3 秒呼叫一次 getAgentScript()
+// 每 3 秒呼叫一次 getAgentScript()，確保特務掛載成功
 setInterval(() => {
     invoke('execute_ytm_js', { script: getAgentScript() }).catch(() => { });
 }, 3000);
+
+// 💡 確保程式啟動時，把我們記憶的音量同步給 YTM (只執行一次)
+setTimeout(() => {
+    sendCommand('volume', userVolumePref);
+}, 3000); // 延遲 3 秒等 YTM 網頁載入
 
 async function sendCommand(action, value = null) {
     const script = `
@@ -317,12 +322,13 @@ listen('ytm_status', (event) => {
     const state = event.payload;
     latestYtmState = state;
 
-    // 🛡️ 絕對音量鎖
-    if (state.volume > userVolumePref + 0.15 || state.volume === 1.0) {
-        if (userVolumePref < 0.85) { 
-            console.warn(`🛡️ 攔截到異常音量暴增！(YTM: ${state.volume}, 記憶: ${userVolumePref})。強制壓回！`);
-            sendCommand('volume', userVolumePref);
-            return; 
+    // 💡 移除原本的「絕對音量鎖」，完全信任 YTM 回傳的真實音量
+    // 如果使用者沒有正在拖動 Widget 的音量條，就把 YTM 的音量同步過來
+    if (document.activeElement !== ui.volume) {
+        if (ui.volume.value !== state.volume.toString()) {
+            ui.volume.value = state.volume;
+            userVolumePref = state.volume; // 更新內部記憶
+            localStorage.setItem('ytm_volume_pref', state.volume.toString()); // 儲存最新狀態
         }
     }
 
@@ -337,17 +343,11 @@ listen('ytm_status', (event) => {
     ui.currentTime.innerText = formatTime(state.currentTime);
     ui.duration.innerText = formatTime(state.duration);
 
-    if (document.activeElement !== ui.volume) {
-        ui.volume.value = state.volume;
-        userVolumePref = state.volume;
-    }
-
     const playPauseImg = document.getElementById('play-pause-img');
     if (playPauseImg) {
         playPauseImg.src = state.isPaused ? playIcon : pauseIcon;
     }
 });
-
 ui.playBtn.addEventListener('click', () => {
     const willPause = !latestYtmState.isPaused;
     
