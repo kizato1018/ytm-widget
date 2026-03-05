@@ -283,9 +283,18 @@ async function sendCommand(action, value = null) {
             if ('${action}' === 'pause') video.pause();
             if ('${action}' === 'seek') video.currentTime = ${value};
             if ('${action}' === 'volume') {
+                // 1. 改變真實的影片音量
                 video.volume = ${value};
-                const slider = document.getElementById('volume-slider');
-                if (slider) slider.value = ${value} * 100;
+                
+                // 2. 尋找 YTM 網頁上的視覺拉桿
+                const ytmSlider = document.getElementById('volume-slider');
+                if (ytmSlider) {
+                    // 更新拉桿的數值 (0~100)
+                    ytmSlider.value = ${value} * 100;
+                    // 💡 關鍵：發送假事件，欺騙 YTM 的前端框架去重新渲染 UI
+                    ytmSlider.dispatchEvent(new CustomEvent('value-changed', { detail: { value: ${value} * 100 }}));
+                    ytmSlider.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             }
             if ('${action}' === 'next') { const btn = document.querySelector('.next-button'); if(btn) btn.click(); }
             if ('${action}' === 'prev') { const btn = document.querySelector('.previous-button'); if(btn) btn.click(); }
