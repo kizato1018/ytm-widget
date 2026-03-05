@@ -7,7 +7,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { exit } from '@tauri-apps/plugin-process';
 
-// 💡 修正 2：使用 import 引入圖片，讓 Vite 打包工具能正確解析路徑！
 import playIcon from './assest/play.png';
 import pauseIcon from './assest/pause.png';
 
@@ -150,54 +149,19 @@ async function setupTray() {
 setupTray();
 
 // ==========================================
-// 3. 本地動態廣告黑名單與潛伏特務
+// 3. 純淨狀態特務 (移除所有擋廣告邏輯)
 // ==========================================
-const DEFAULT_AD_DOMAINS = [
-    'doubleclick.net',
-    'googleadservices.com',
-    'youtube.com/api/stats/ads',
-    'youtube.com/pagead/',
-    'googlesyndication.com'
-];
 
-let currentAdDomains = JSON.parse(localStorage.getItem('ytm_ad_domains')) || DEFAULT_AD_DOMAINS;
-
-window.updateAdDomains = (newDomains) => {
-    currentAdDomains = newDomains;
-    localStorage.setItem('ytm_ad_domains', JSON.stringify(currentAdDomains));
-    console.log("🛡️ 廣告黑名單已更新並存入本地資料庫！");
-};
 
 function getAgentScript() {
     return `
         (() => {
             if (!window.__TAURI__ || !window.__TAURI__.event) return;
-            window.__AD_DOMAINS__ = ${JSON.stringify(currentAdDomains)};
-
-            if (!window.__YTM_ADBLOCK_INSTALLED__) {
-                window.__YTM_ADBLOCK_INSTALLED__ = true;
-                
-                const originalFetch = window.fetch;
-                window.fetch = async function(...args) {
-                    const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-                    if (window.__AD_DOMAINS__.some(domain => url.includes(domain))) {
-                        return new Response('{}', { status: 200 }); 
-                    }
-                    return originalFetch.apply(this, args);
-                };
-
-                const originalXHR = window.XMLHttpRequest.prototype.open;
-                window.XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-                    if (typeof url === 'string' && window.__AD_DOMAINS__.some(domain => url.includes(domain))) {
-                        url = 'data:,'; 
-                    }
-                    return originalXHR.call(this, method, url, ...rest);
-                };
-            }
 
             if (window.__YTM_AGENT_INSTALLED__) return;
             window.__YTM_AGENT_INSTALLED__ = true;
 
+            // 💡 用來記錄是否正在處理廣告，以便廣告結束後恢復音量與語速
             let isAdHandling = false;
 
             const emitStatus = (video) => {
@@ -207,7 +171,6 @@ function getAgentScript() {
                 let formattedArtist = artistEl ? artistEl.innerText : "無";
                 formattedArtist = formattedArtist.replace(/\\n/g, '').replace(/\\s*•\\s*/g, ' • ').trim();
                 
-                // 💡 修正 1：檢查標題是否為空字串，避免覆蓋掉「連線中...」
                 let titleText = titleEl ? titleEl.innerText.trim() : "";
                 
                 window.__TAURI__.event.emit('ytm_status', {
@@ -221,26 +184,33 @@ function getAgentScript() {
                 });
             };
 
+            // 💡 加回來的核心：DOM 廣告終結者
             const killAdsAndPopups = (video) => {
+                // 判斷當前是否處於廣告狀態
                 const isAd = document.querySelector('.ad-showing') || document.querySelector('.ytp-ad-player-overlay');
+                
                 if (isAd) {
                     isAdHandling = true;
-                    video.muted = true;
-                    video.playbackRate = 16.0;
+                    video.muted = true;         // 1. 靜音
+                    video.playbackRate = 4.0;   // 2. 加速 (使用 4.0 比較安全，不易觸發反作弊)
 
-                    if (!isNaN(video.duration) && video.currentTime < video.duration - 0.5) {
-                        video.currentTime = video.duration - 0.1;
+                    // 3. 直接跳到最後 1 秒 (留一點點時間讓 YouTube 正常派發 ended 事件)
+                    if (!isNaN(video.duration) && video.currentTime < video.duration - 1) {
+                        video.currentTime = video.duration - 1;
                     }
 
+                    // 4. 狂按跳過按鈕 (如果有的話)
                     const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
                     if (skipBtn) {
                         skipBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                     }
                     
+                    // 確保播放不被中斷
                     if (video.paused) {
                         video.play().catch(() => {}); 
                     }
                 } else {
+                    // 如果廣告結束，切換回正片，把狀態恢復！
                     if (isAdHandling) {
                         video.muted = false;
                         video.playbackRate = 1.0;
@@ -248,14 +218,18 @@ function getAgentScript() {
                     }
                 }
 
+                // --- 順手把討人厭的彈窗一起點掉 ---
+                // 1. 「你還在聽嗎？」彈窗
                 const youThereBtn = document.querySelector('.ytmusic-you-there-renderer yt-button-renderer[dialog-confirm] button');
                 if (youThereBtn && youThereBtn.offsetParent !== null) youThereBtn.click();
 
+                // 2. 內容警告彈窗
                 const warningBtns = document.querySelectorAll('player-error-message-container button, ytmusic-content-warning-supported-renderers tp-yt-paper-button, #proceed-button');
                 warningBtns.forEach(btn => {
                     if (btn.offsetParent !== null) btn.click();
                 });
 
+                // 3. 新功能介紹 / 促銷彈窗
                 const dismissBtns = document.querySelectorAll('ytmusic-mealbar-promo-renderer #dismiss-button, yt-button-renderer[aria-label="關閉"] button, yt-button-renderer[aria-label="Close"] button');
                 dismissBtns.forEach(btn => {
                     if (btn.offsetParent !== null) btn.click();
@@ -270,7 +244,7 @@ function getAgentScript() {
                 video.dataset.agentAttached = "true";
 
                 video.addEventListener('timeupdate', () => {
-                    killAdsAndPopups(video); 
+                    killAdsAndPopups(video); // 💡 在每次時間更新時，執行廣告與彈窗偵測
                     emitStatus(video);       
                 });
 
@@ -290,8 +264,7 @@ function getAgentScript() {
     `;
 }
 
-// 每 3 秒呼叫一次 getAgentScript()，確保特務帶上最新的黑名單
-// 💡 修正 3：移除這裡的 sendCommand('volume')，停止與 YTM 互相搶奪音量控制權
+// 每 3 秒呼叫一次 getAgentScript()
 setInterval(() => {
     invoke('execute_ytm_js', { script: getAgentScript() }).catch(() => { });
 }, 3000);
@@ -344,7 +317,7 @@ listen('ytm_status', (event) => {
     const state = event.payload;
     latestYtmState = state;
 
-    // 🛡️ 絕對音量鎖：只在偵測到異常暴增時才強制壓回
+    // 🛡️ 絕對音量鎖
     if (state.volume > userVolumePref + 0.15 || state.volume === 1.0) {
         if (userVolumePref < 0.85) { 
             console.warn(`🛡️ 攔截到異常音量暴增！(YTM: ${state.volume}, 記憶: ${userVolumePref})。強制壓回！`);
@@ -369,7 +342,6 @@ listen('ytm_status', (event) => {
         userVolumePref = state.volume;
     }
 
-    // 💡 修正 2：使用已引入的變數來更新圖片
     const playPauseImg = document.getElementById('play-pause-img');
     if (playPauseImg) {
         playPauseImg.src = state.isPaused ? playIcon : pauseIcon;
@@ -379,7 +351,6 @@ listen('ytm_status', (event) => {
 ui.playBtn.addEventListener('click', () => {
     const willPause = !latestYtmState.isPaused;
     
-    // 💡 修正 2：使用已引入的變數來更新圖片
     const playPauseImg = document.getElementById('play-pause-img');
     if (playPauseImg) {
         playPauseImg.src = willPause ? playIcon : pauseIcon;
