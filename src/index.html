@@ -88,6 +88,36 @@
 
     .volume-controls { display: flex; align-items: center; gap: 8px; }
     #volume-bar { width: 60px; margin: 0; }
+
+    /* 音量/靜音按鈕 */
+    #volume-btn { background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; -webkit-app-region: no-drag; transition: transform 0.1s; }
+    #volume-btn:hover { transform: scale(1.1); }
+    #volume-icon { transition: opacity 0.25s ease; }
+    #volume-btn.vol-muted #volume-icon { opacity: 0.3; }
+    /* 靜音時畫一條紅色斜線，用寬度做過渡動畫 */
+    #volume-btn::after {
+        content: ""; position: absolute; left: 50%; top: 50%;
+        width: 0; height: 2px; border-radius: 2px; background: #ff4444;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        transition: width 0.25s ease; pointer-events: none;
+    }
+    #volume-btn.vol-muted::after { width: 22px; }
+
+    /* 下載按鈕進度：綠色由下往上填滿 */
+    #download-btn { position: relative; overflow: hidden; border-radius: 5px; }
+    #download-btn::before {
+        content: "";
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: var(--dl-progress, 0%);
+        background: #1db954;
+        transition: height 0.2s ease;
+        z-index: 0;
+        pointer-events: none;
+    }
+    #download-btn.downloaded { --dl-progress: 100%; }
+    #download-btn.dl-error::before { height: 100%; background: #e0245e; }
+    #download-btn img { position: relative; z-index: 1; }
   </style>
 </head>
 <body>
@@ -122,7 +152,9 @@
             </button>
         </div>
         <div class="volume-controls">
-            <img src="./assets/volume.png" class="icon-sm" alt="音量">
+            <button id="volume-btn" title="靜音 / 取消靜音">
+                <img id="volume-icon" src="./assets/volume.png" class="icon-sm" alt="音量">
+            </button>
             <input type="range" id="volume-bar" min="0" max="1" value="0.5" step="0.05">
         </div>
     </div>

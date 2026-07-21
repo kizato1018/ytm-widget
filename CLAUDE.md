@@ -45,7 +45,7 @@ The `ytm-bg` window is the core — it's a real browser tab running YouTube Musi
 - **`src/main.js`** — All widget logic: window management, tray setup, agent script injection, UI state, playback commands
 - **`src/index.html`** — Widget UI with inline CSS (no separate stylesheet); theming via CSS variables and `data-theme` attribute
 - **`src/settings.js`** — Settings window: dark/light theme toggle, download path picker, autostart toggle
-- **`src/assest/`** — Static assets (play/pause/next/back/volume/downloading icons); note the folder name is intentionally misspelled
+- **`src/assets/`** — Static PNG icons (play/pause/next/back/volume/downloading), imported via Vite (`import playIcon from './assets/play.png'`)
 - **`src-tauri/src/lib.rs`** — Rust backend: registers Tauri commands (`execute_ytm_js`, `download_music`), creates the `ytm-bg` window with platform-specific user agent in `setup()`
 
 ### State & Persistence
@@ -73,8 +73,9 @@ The injected agent script in `getAgentScript()` (in `main.js`) detects ads by qu
 
 ### External Dependencies
 
-- **`yt-dlp`** — bundled as a Tauri sidecar (must be present in `src-tauri/binaries/`); used by `download_music` command to download audio as `.m4a`
+- **`yt-dlp`** — bundled as a Tauri sidecar (must be present in `src-tauri/binaries/` with per-platform target-triple suffix, e.g. `yt-dlp-x86_64-pc-windows-msvc.exe`); used by `download_music` to grab the current track. Format selector is `ba[ext=m4a]/ba/bestaudio/best` (YouTube no longer reliably exposes m4a-only audio, so it falls back to whatever's available). `download_music` emits `download_progress` events (0–100) parsed from yt-dlp's `--progress-template` stdout.
+- **`ffmpeg`** — must be on the user's `PATH`. `download_music` passes `-x --audio-format mp3`, so yt-dlp uses ffmpeg to extract/transcode audio to `.mp3` (needed because the fallback format is often a muxed mp4).
 
 ### Settings Window Lifecycle
 
-The `settings` window is **not** pre-declared in `tauri.conf.json`. It is created on demand via `new WebviewWindow('settings', ...)` when the tray menu item is clicked. If already open, it is shown and focused instead of re-created.
+The `settings` window **is** pre-declared in `tauri.conf.json` (label `settings`, `url: /settings.html`, `visible: false`), so it exists hidden at startup. When the tray menu "設定" item is clicked, `main.js` looks it up via `WebviewWindow.getByLabel('settings')` and shows/focuses it; the `new WebviewWindow('settings', ...)` branch is a fallback that only fires if the pre-declared window is gone.

@@ -1,6 +1,13 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
+
+// 從 yt-dlp 的 --progress-template 輸出 (例如 "DLPROG:  45.2%") 解析出百分比數字
+fn parse_progress(text: &str) -> Option<f64> {
+    let idx = text.find("DLPROG:")?;
+    let rest = &text[idx + "DLPROG:".len()..];
+    rest.trim().trim_end_matches('%').trim().parse::<f64>().ok()
+}
 
 #[tauri::command]
 async fn download_music(app: tauri::AppHandle, url: String, path: String) -> Result<String, String> {
@@ -9,20 +16,53 @@ async fn download_music(app: tauri::AppHandle, url: String, path: String) -> Res
         .sidecar("yt-dlp")
         .map_err(|e| e.to_string())?
         .args([
-            "-f", "ba[ext=m4a]",
-            "--no-playlist",
+            "--no-update",
+            // YTM 現在不一定提供純 m4a 音訊串流，逐層回退確保一定抓得到可下載的格式
+            "-f", "ba[ext=m4a]/ba/bestaudio/best",
+            // 用 ffmpeg 把音訊抽出成 mp3 (若下載到的是含影像的格式也會轉成純音訊)
+            "-x", "--audio-format", "mp3",
             "--audio-quality", "0",
+            "--no-playlist",
+            "--newline",
+            "--progress-template", "DLPROG:%(progress._percent_str)s",
             "-o", &format!("{}/%(title)s.%(ext)s", path),
             &url,
         ]);
 
     let (mut rx, _child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
 
+    let mut error_output = String::new();
+    let mut exit_code: Option<i32> = None;
+
     while let Some(event) = rx.recv().await {
-        if let CommandEvent::Stdout(line) = event {
-            println!("下載進度: {:?}", String::from_utf8(line));
+        match event {
+            // yt-dlp 的下載進度透過 --progress-template 走 stdout
+            CommandEvent::Stdout(line) => {
+                let text = String::from_utf8_lossy(&line);
+                if let Some(pct) = parse_progress(&text) {
+                    let _ = app.emit("download_progress", pct);
+                }
+            }
+            // 警告與錯誤都在 stderr；成功 (exit 0) 時忽略，失敗時當作錯誤訊息回傳
+            CommandEvent::Stderr(line) => {
+                error_output.push_str(&String::from_utf8_lossy(&line));
+            }
+            CommandEvent::Terminated(payload) => {
+                exit_code = payload.code;
+            }
+            _ => {}
         }
     }
+
+    if exit_code != Some(0) {
+        return Err(if error_output.trim().is_empty() {
+            format!("yt-dlp 結束代碼 {:?}", exit_code)
+        } else {
+            error_output.trim().to_string()
+        });
+    }
+
+    let _ = app.emit("download_progress", 100.0);
     Ok("下載完成".into())
 }
 
