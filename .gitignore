@@ -15,8 +15,7 @@ dist-ssr
 src-tauri/gen/
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
+.vscode/
 .idea
 .DS_Store
 *.suo
@@ -24,3 +23,11 @@ src-tauri/gen/
 *.njsproj
 *.sln
 *.sw?
+
+# AI 助理的本機設定與指引，與 app 運行無關
+.claude/
+CLAUDE.md
+docs/agents/
+
+# spec 的正本在 GitHub issue，本地檔案僅供查閱
+docs/specs/
